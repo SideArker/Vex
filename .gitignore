@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Compiled output and caches
+dist/
+build/
+*.tsbuildinfo
+.cache/
+
+# Python scaffold artifacts
+__pycache__/
+*.pyc
+.venv/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and runtime data
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vex/
+
+# Temporary files
+.tmp/
+tmp/
+*.tmp
+
+# Local editor settings
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+Desktop.ini
