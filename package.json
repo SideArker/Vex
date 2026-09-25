@@ -1,14 +1,16 @@
 {
       "name": "vex-mcp",
       "version": "0.1.0",
-      "private": true,
+      "private": false,
       "type": "module",
-      "description": "Vex: Jev decision-tool integration for coding agents",
+      "description": "TypeScript Jev decision engine, CLI, and Vex MCP server",
+      "bin": { "jev": "./dist/cli/jev.js", "vex": "./dist/index.js" },
+      "files": ["dist", "README.md", "integrations/codex"],
       "scripts": {
         "dev": "tsx src/index.ts",
         "build": "tsc --project tsconfig.json",
-        "test": "vitest run",
-        "check": "tsc --noEmit"
+        "test": "npm run build && vitest run",
+        "check": "tsc --noEmit && tsc --project tests/tsconfig.json"
       },
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.0",
