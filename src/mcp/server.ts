@@ -1,4 +1,36 @@
-// TODO: Verify the installed @modelcontextprotocol/sdk version, then
-// expose choose_skill and choose_next_action using documented stdio APIs.
-// Do not write anything except MCP protocol messages to stdout.
-export {};
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { decide, errorResult, type EngineOptions } from "../core/engine.js";
+import { boundedDecisionSchema } from "../core/schemas.js";
+
+/** One generic MCP tool using exactly the same public decision path as the CLI. */
+export function createServer(engine: EngineOptions = {}): McpServer {
+  const server = new McpServer({ name: "vex", version: "0.1.0" });
+  server.registerTool(
+    "vex_choose",
+    {
+      description:
+        "Choose among supplied options with TypeSafe Jev; abstains on missing or weak evidence. Input is sent to OpenRouter.",
+      inputSchema: boundedDecisionSchema,
+    },
+    async (request) => {
+      try {
+        const result = await decide(request, engine);
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+          structuredContent: { ...result },
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: JSON.stringify(errorResult(error)) }],
+          isError: true,
+        };
+      }
+    },
+  );
+  return server;
+}
+
+export async function startServer(): Promise<void> {
+  await createServer().connect(new StdioServerTransport());
+}
