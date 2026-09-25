@@ -129,7 +129,6 @@ describe("public bounded decision", () => {
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name)).toEqual([
         "vex_choose",
-        "vex_workflow",
       ]);
       const mcpResult = await client.callTool({
         name: "vex_choose",
@@ -146,7 +145,7 @@ describe("public bounded decision", () => {
   });
 });
 
-describe("MCP workflow", () => {
+describe("CLI workflow", () => {
   it("returns typed model answers and only a supported route selection", async () => {
     const context = {
       runtime: "codex",
@@ -170,14 +169,22 @@ describe("MCP workflow", () => {
         },
       }), { status: 200 });
     }) as typeof fetch;
-    const server = createServer({ apiKey: "test", fetchImpl });
-    const client = new Client({ name: "test", version: "1.0.0" });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const directory = await mkdtemp(join(tmpdir(), "vex-workflow-"));
+    const file = join(directory, "workflow.json");
+    await writeFile(file, JSON.stringify(context));
+    const output: string[] = [];
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk) => {
+        output.push(String(chunk));
+        return true;
+      });
     try {
-      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-      const result = await client.callTool({ name: "vex_workflow", arguments: context });
-      expect(result.isError).toBeFalsy();
-      expect(result.structuredContent).toMatchObject({
+      expect(
+        await runCli(["workflow", file, "--raw"], { apiKey: "test", fetchImpl }),
+      ).toBe(0);
+      const result = JSON.parse(output.join(""));
+      expect(result).toMatchObject({
         workflow: {
           human_review_recommended: false,
           next_steps: [],
@@ -187,8 +194,9 @@ describe("MCP workflow", () => {
       });
       expect(fetchImpl).toHaveBeenCalledTimes(1);
     } finally {
-      await client.close();
-      await server.close();
+      stdout.mockRestore();
+      await unlink(file);
+      await rmdir(directory);
     }
   });
 
@@ -203,33 +211,38 @@ describe("MCP workflow", () => {
         },
       },
     }), { status: 200 })) as typeof fetch;
-    const server = createServer({ apiKey: "test", fetchImpl });
-    const client = new Client({ name: "test", version: "1.0.0" });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    try {
-      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-      const models = { "luna-low": "Small", "sol-medium": "Broader" };
-      const result = await client.callTool({
-        name: "vex_workflow",
-        arguments: { runtime: "codex", task: "Route", models },
+    const directory = await mkdtemp(join(tmpdir(), "vex-workflow-"));
+    const file = join(directory, "workflow.json");
+    const models = { "luna-low": "Small", "sol-medium": "Broader" };
+    await writeFile(file, JSON.stringify({ runtime: "codex", task: "Route", models }));
+    const output: string[] = [];
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk) => {
+        output.push(String(chunk));
+        return true;
       });
-      expect(result.structuredContent).toMatchObject({
+    try {
+      expect(
+        await runCli(["workflow", file, "--raw"], { apiKey: "test", fetchImpl }),
+      ).toBe(0);
+      const result = JSON.parse(output.join(""));
+      expect(result).toMatchObject({
         workflow: {
           human_review_recommended: true,
           next_steps: ["Uncertain model choice"],
           selections: {},
         },
       });
-      const error = await client.callTool({
-        name: "vex_workflow",
-        arguments: { runtime: "antigravity", task: "Route", models },
-      });
-      expect(error.isError).toBe(true);
-      expect(error.structuredContent).toMatchObject({ error: true });
+      await writeFile(file, JSON.stringify({ runtime: "antigravity", task: "Route", models }));
+      await expect(
+        runCli(["workflow", file, "--raw"], { apiKey: "test", fetchImpl }),
+      ).rejects.toThrow("Model routing is available only for Codex");
       expect(fetchImpl).toHaveBeenCalledTimes(1);
     } finally {
-      await client.close();
-      await server.close();
+      stdout.mockRestore();
+      await unlink(file);
+      await rmdir(directory);
     }
   });
 });
