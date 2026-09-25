@@ -19,7 +19,7 @@ Autonomous AI coding agents frequently struggle with confirmation bias, tool hal
 - **Mathematical Abstention Guarantee**: Automatically abstains (`choice: null`, `abstained: true`) if confidence is below `0.70` or the top option's probability lead over the runner-up is below `0.15`.
 - **Dual Interface**:
   - **`jev` CLI**: Command-line interface for human operators, shell scripts, and subprocess piping.
-  - **`vex` MCP Server**: High-performance stdio Model Context Protocol server exposing `vex_choose` and `vex_workflow`.
+  - **`vex` MCP Server**: High-performance, lean stdio Model Context Protocol server exposing `vex_choose`.
 - **Multi-Runtime Ready**: First-class workflows for Codex (with Pace agent routing), Claude Desktop, Cursor, and Antigravity.
 - **Non-Execution Invariant**: Jev is strictly advisory. It never executes shell commands or alters files; the caller retains execution and verification responsibility.
 
@@ -34,7 +34,7 @@ flowchart LR
     end
 
     subgraph VexPackage["Vex & Jev Boundary"]
-        MCP["vex MCP Server\n(vex_choose / vex_workflow)"]
+        MCP["vex MCP Server\n(vex_choose)"]
         CLI["jev CLI\n(decide / workflow / gate / triage)"]
         Engine["Core Decision Engine\n(Threshold & Abstention Validation)"]
     end
@@ -134,9 +134,8 @@ Operations Breakdown:
 
 ## MCP Server Setup
 
-Vex provides a standard stdio MCP server exposing two core tools:
-1. `vex_choose`: Bounded choice selection with threshold validation.
-2. `vex_workflow`: Multi-dimensional evaluation of tools, agents, models, evidence completeness, and human review signals.
+Vex provides a high-performance, lean stdio MCP server exposing `vex_choose`:
+- `vex_choose`: Bounded choice selection with threshold validation ($\ge 0.70$ confidence, $\ge 0.15$ probability lead) across 2 to 12 supplied options. Zero schema bloat and minimal context token footprint.
 
 ### Configuration Examples
 

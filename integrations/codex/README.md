@@ -4,19 +4,29 @@ Build this package, then register the MCP stdio server with the path to `dist/in
 
 `vex_choose` accepts a question, optional context and constraints, and two to twelve described options. It returns a versioned decision and abstains when confidence is low or the returned ID is unavailable.
 
-For Pace, call `vex_workflow` with `runtime: "codex"`, a concise `task`, and two to twelve described `models` candidates. Put the complete executable route (model and effort, plus agent when relevant) in each candidate ID and description. Do not request model, effort, and agent as separate choices if Pace needs one compatible route. Example:
+For Pace model routing, call `vex_choose` directly. Pass the candidate worker routes in `options`. Put the complete executable route (model and effort, plus agent when relevant) in each option ID and description:
 
 ```json
 {
-  "runtime": "codex",
-  "task": "Fix a small TypeScript regression with a focused test",
-  "models": {
-    "luna-low-builder": "gpt-6-luna, low reasoning, builder agent for routine narrow edits",
-    "sol-medium-builder": "gpt-6-sol, medium reasoning, builder agent for less certain coding work"
-  }
+  "question": "Which worker model route should handle this task?",
+  "context": "Fix a small TypeScript regression with a focused test",
+  "options": [
+    {
+      "id": "luna-low-builder",
+      "description": "gpt-6-luna, low reasoning, builder agent for routine narrow edits"
+    },
+    {
+      "id": "sol-medium-builder",
+      "description": "gpt-6-sol, medium reasoning, builder agent for less certain coding work"
+    },
+    {
+      "id": "self",
+      "description": "Handle directly in the main session"
+    }
+  ]
 }
 ```
 
-Read `structuredContent.workflow.selections.model` as the route ID. If it is absent, abstain and use Pace's own fallback or gather more evidence. `response` contains the typed Jev answer and usage details; `workflow` contains thresholded selections and next-step signals. Optional `tools`, `agents`, `evidence`, `acceptance`, and `proposed_action` support broader workflow checks. Supply concise, sanitized context. Explicit user instructions and tool permissions take precedence over Jev advice.
+Read `result.choice` (or `structuredContent.choice`) directly as the route ID. If `abstained: true` or `choice: null`, use Pace's fallback or gather more evidence. Supply concise, sanitized context. Explicit user instructions and tool permissions take precedence over Jev advice.
 
 If an older global `jev` command exists, inspect command resolution before replacing anything. The independent `node dist/cli/jev.js` command works without changing the global installation. To roll back, restore the previous MCP command and shell path.

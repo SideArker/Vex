@@ -208,10 +208,12 @@ def ask_jev(question: str, options: list[dict[str, str]], context: str = None) -
 ## 6. Antigravity & Codex Specific Directives
 
 ### For Codex (with Pace):
-- Pass complete model, effort, and agent in a single `models` candidate ID (e.g. `luna-low-builder`, `sol-medium-builder`).
-- Read `workflow.selections.model` to dispatch the subagent.
+- **Universal Decision Tool**: Use `vex_choose` directly for subagent and worker model routing.
+- Pass complete model, effort, and agent in a candidate option ID and description (e.g. `{ "id": "luna-low-builder", "description": "gpt-6-luna, low reasoning, builder agent" }`).
+- Read `result.choice` to dispatch the subagent.
 
 ### For Antigravity:
-- **Rule**: Do not use Jev for model routing in Antigravity.
+- **Universal Decision Tool**: Use `vex_choose` as the primary decision engine for tool selection, skill selection, subagent delegation (`self` vs `research`), and architectural choices.
+- **Rule**: Antigravity does not support dynamic model routing; never attempt model routing in Antigravity.
 - **Rule**: Do not use Jev to override authorization, security sandboxes, or user permissions.
-- **Use**: Use Jev for bounded specialist selection, tool disambiguation when multiple valid tools remain, evidence sufficiency checks, and pre-completion verification.
+- **Use**: Use `vex_choose` for bounded specialist selection, tool disambiguation when multiple valid tools remain, evidence sufficiency checks, and pre-action safety gating.
