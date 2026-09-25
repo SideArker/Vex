@@ -244,6 +244,30 @@ vex mcp serve
 
 ---
 
+### 2.11 `jev stats` & `vex stats`
+Display combined Vex (MCP) and Jev (CLI) usage statistics, operational breakdowns, and live OpenRouter account credit details.
+
+```sh
+# Formatted combined statistics display
+jev stats
+vex stats
+
+# Output machine-readable JSON representation
+jev stats --raw
+vex stats --raw
+
+# Reset local engine statistics
+jev stats --reset
+vex stats --reset
+```
+
+#### Output Fields:
+- **OpenRouter Account**: Active key label, spend limit, remaining credit, key usage, and total account credits.
+- **Combined Engine Activity**: Total calls executed across both Vex (MCP tools) and Jev (CLI commands), total spend, token volume (prompt/decision), and average latency.
+- **Operations Breakdown**: Detailed count, cost, and latency partitioned by operation (`[vex] vex_choose`, `[vex] vex_workflow`, `[jev] decide`, `[jev] workflow`, `[jev] triage`, `[jev] gate`, etc.).
+
+---
+
 ## 3. Exit Codes
 
 All CLI commands follow strict exit code conventions:

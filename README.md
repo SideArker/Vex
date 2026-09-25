@@ -97,6 +97,39 @@ Output:
 Choice: tests (confidence: 0.94)
 ```
 
+### 4. Inspect Usage & Combined Stats
+
+Check combined activity across both Vex MCP tools and Jev CLI commands, alongside live OpenRouter balances:
+
+```sh
+node dist/cli/jev.js stats
+node dist/index.js stats
+```
+
+Output:
+```text
+================ VEX & JEV STATS (COMBINED) ================
+OpenRouter Account:
+  - Key: sk-or-v1-abc...def
+  - Key Limit: $5.0000 | Remaining: $4.9978
+  - Key Usage: $0.002174
+  - Total Credits: $5.0000 | Total Spend: $0.002174
+
+Combined Engine Activity:
+  - Total Calls: 32 (Vex: 0, Jev: 32)
+  - Total Spend: $0.000989 (avg: $0.000031/call)
+  - Tokens: 23,545 prompt in / 3,804 decision out
+  - Avg Latency: 527.4ms (total time: 16.88s)
+
+Operations Breakdown:
+  - [jev] gate        :  2 calls | $0.000034 | avg 471.8ms
+  - [jev] run         : 18 calls | $0.000366 | avg 525.8ms
+  - [jev] suggest     :  8 calls | $0.000471 | avg 551.9ms
+  - [jev] triage      :  2 calls | $0.000057 | avg 496.1ms
+  - [jev] workflow    :  2 calls | $0.000062 | avg 530.4ms
+============================================================
+```
+
 ---
 
 ## MCP Server Setup
