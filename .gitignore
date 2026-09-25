@@ -48,3 +48,7 @@ tmp/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+
+data/jev/
+AGENTS.md
