@@ -13,12 +13,17 @@ import {
   type DecisionRequest,
   type DecisionResponse,
 } from "./schemas.js";
+import { recordStat } from "./stats.js";
 
 export interface EngineOptions {
   apiKey?: string;
   keyProvider?: () => Promise<string | null>;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  recordStats?: boolean;
+  statsFilePath?: string;
+  operation?: string;
+  source?: "vex" | "jev" | string;
 }
 
 export async function resolveApiKey(): Promise<string | null> {
@@ -101,9 +106,24 @@ async function callDecisions(
       response.status,
       parsed.error.flatten(),
     );
+  const elapsed = (performance.now() - start) / 1000;
+  if (options.recordStats !== false) {
+    const operation = options.operation ?? "custom";
+    const source =
+      options.source ?? (operation.startsWith("vex_") ? "vex" : "jev");
+    await recordStat(
+      {
+        operation,
+        source,
+        elapsedSeconds: elapsed,
+        usage: parsed.data.usage,
+      },
+      options.statsFilePath,
+    ).catch(() => {});
+  }
   return {
     ...parsed.data,
-    _elapsed_seconds: (performance.now() - start) / 1000,
+    _elapsed_seconds: elapsed,
   };
 }
 
@@ -113,7 +133,10 @@ export async function decideTyped(
   options: EngineOptions = {},
 ): Promise<DecisionResponse> {
   const request = requestSchema.parse(input);
-  const response = await callDecisions(request, options);
+  const response = await callDecisions(request, {
+    operation: options.operation ?? "run",
+    ...options,
+  });
   if (
     Object.keys(response.answers).length !==
     Object.keys(request.questions).length
@@ -175,7 +198,7 @@ export async function decide(
         },
       },
     },
-    options,
+    { operation: options.operation ?? "decide", ...options },
   );
   const answer = response.answers.decision;
   const abstain = (
