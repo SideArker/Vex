@@ -1,26 +1,36 @@
 {
-      "name": "vex-mcp",
-      "version": "0.1.0",
-      "private": false,
-      "type": "module",
-      "description": "TypeScript Jev decision engine, CLI, and Vex MCP server",
-      "bin": { "jev": "./dist/cli/jev.js", "vex": "./dist/index.js" },
-      "files": ["dist", "README.md", "integrations/codex"],
-      "scripts": {
-        "dev": "tsx src/index.ts",
-        "build": "tsc --project tsconfig.json",
-        "test": "npm run build && vitest run",
-        "check": "tsc --noEmit && tsc --project tests/tsconfig.json"
-      },
-      "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.0",
-        "zod": "^3.0.0"
-      },
-      "devDependencies": {
-        "@types/node": "^22.0.0",
-        "tsx": "^4.0.0",
-        "typescript": "^5.0.0",
-        "vitest": "^3.0.0"
-      },
-      "engines": {"node": ">=20"}
-    }
+  "name": "vex-mcp",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "TypeScript Jev decision engine, CLI, and Vex MCP server",
+  "bin": {
+    "jev": "./dist/cli/jev.js",
+    "vex": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "integrations/codex"
+  ],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc --project tsconfig.json",
+    "test": "npm run build && vitest run",
+    "check": "tsc --noEmit && tsc --project tests/tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
