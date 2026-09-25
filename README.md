@@ -65,7 +65,7 @@ The CLI also supports `triage`, `gate`, `verify-diff`, and `suggest-skill` (`sug
 
 ## MCP
 
-Configure an MCP stdio client to launch `node /absolute/path/to/Vex/dist/index.js mcp serve` or `vex mcp serve`. The server exposes one generic tool, `vex_choose`, using the bounded decision contract above. Include `none` or another abstention option if it is a valid outcome. A tool result is advice, not permission to act.
+Configure an MCP stdio client to launch `node /absolute/path/to/Vex/dist/index.js mcp serve` or `vex mcp serve`. The server exposes `vex_choose` using the bounded decision contract above, plus `vex_workflow` using the CLI workflow context and thresholded summary. Include `none` or another abstention option if it is a valid outcome. A tool result is advice, not permission to act.
 
 For clients that accept a JSON stdio server entry, the equivalent command is:
 
@@ -76,7 +76,7 @@ For clients that accept a JSON stdio server entry, the equivalent command is:
 }
 ```
 
-The client registers that process as an MCP server and calls its `vex_choose` tool with the bounded request fields above. Configuration wrappers vary by client.
+The client registers that process as an MCP server and calls `vex_choose` with the bounded request fields above, or `vex_workflow` with `runtime`, `task`, and described `tools`, `agents`, or `models` candidates. The workflow tool returns `{ response, workflow }` in MCP `structuredContent`. Only IDs in `workflow.selections` passed the choice threshold; an absent ID means abstain. Pace should represent a complete model, effort, and agent route as one `models` candidate to avoid incompatible independent selections. See the [Codex integration example](integrations/codex/README.md). Configuration wrappers vary by client.
 
 Pace can instead use Jev as a subprocess with one JSON request on stdin and one JSON result on stdout. For example, from a Node.js worker:
 
