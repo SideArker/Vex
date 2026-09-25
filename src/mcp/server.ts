@@ -20,7 +20,11 @@ export function createServer(engine: EngineOptions = {}): McpServer {
     },
     async (request) => {
       try {
-        const result = await decide(request, engine);
+        const result = await decide(request, {
+          operation: "vex_choose",
+          source: "vex",
+          ...engine,
+        });
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
           structuredContent: { ...result },
@@ -43,7 +47,11 @@ export function createServer(engine: EngineOptions = {}): McpServer {
     async (context) => {
       try {
         const request = buildWorkflowRequest(context);
-        const response = await decideTyped(request, engine);
+        const response = await decideTyped(request, {
+          operation: "vex_workflow",
+          source: "vex",
+          ...engine,
+        });
         const result = { response, workflow: summarizeWorkflow(response, request) };
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],

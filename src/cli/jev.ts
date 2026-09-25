@@ -23,6 +23,12 @@ import {
   requestSchema,
   type DecisionRequest,
 } from "../core/schemas.js";
+import {
+  fetchAccountStats,
+  formatStatsReport,
+  readLocalStats,
+  resetLocalStats,
+} from "../core/stats.js";
 
 const VERSION = "0.1.0";
 const HELP = `Usage: jev <command> [options]
@@ -38,6 +44,7 @@ Commands:
   triage [task]                Classify an engineering task
   gate [action]                Assess a proposed action
   verify-diff [file|-]         Review a diff
+  stats [--raw] [--reset]      Display Vex & Jev usage statistics and credit details
   doctor                       Check installation and key availability
   --version, --help            Show version or this help
 
@@ -65,9 +72,9 @@ function options(
   const flags: Record<string, string | boolean> = {};
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === "--raw" || arg === "--json") {
+    if (arg === "--raw" || arg === "--json" || arg === "--reset") {
       if (!allowed.includes(arg)) throw new Error(`Unsupported option: ${arg}`);
-      flags[arg === "--raw" ? "raw" : "--json"] = true;
+      flags[arg === "--raw" ? "raw" : arg] = true;
       continue;
     }
     const key =
@@ -227,7 +234,11 @@ export async function runCli(
     const request = boundedDecisionSchema.parse(
       human ? human.request : asJson(await readInput(single(positional, "-"))),
     );
-    const result = await decide(request, engine);
+    const result = await decide(request, {
+      operation: "decide",
+      source: "jev",
+      ...engine,
+    });
     stdout.write(
       flags["--json"]
         ? `${JSON.stringify(result)}\n`
@@ -241,7 +252,7 @@ export async function runCli(
       requestSchema.parse(asJson(await readInput(single(positional, "-")))),
       flags,
       false,
-      engine,
+      { operation: "run", source: "jev", ...engine },
     );
   }
   if (command === "workflow") {
@@ -254,7 +265,7 @@ export async function runCli(
       ),
       flags,
       true,
-      engine,
+      { operation: "workflow", source: "jev", ...engine },
     );
   }
   if (command === "eval") {
@@ -272,7 +283,7 @@ export async function runCli(
       }),
       flags,
       false,
-      engine,
+      { operation: "eval", source: "jev", ...engine },
     );
   }
   if (command === "route") {
@@ -292,7 +303,7 @@ export async function runCli(
     const result = await routeIntent(
       state,
       routes as Record<string, string>,
-      engine,
+      { operation: "route", source: "jev", ...engine },
     );
     if (flags["--out"])
       await writeFile(
@@ -335,7 +346,7 @@ export async function runCli(
       }),
       flags,
       false,
-      engine,
+      { operation: "suggest", source: "jev", ...engine },
     );
   }
   if (command === "triage") {
@@ -384,7 +395,7 @@ export async function runCli(
       },
       flags,
       false,
-      engine,
+      { operation: "triage", source: "jev", ...engine },
     );
   }
   if (command === "gate") {
@@ -414,7 +425,7 @@ export async function runCli(
       },
       flags,
       false,
-      engine,
+      { operation: "gate", source: "jev", ...engine },
     );
   }
   if (command === "verify-diff") {
@@ -447,8 +458,33 @@ export async function runCli(
       },
       flags,
       false,
-      engine,
+      { operation: "verify-diff", source: "jev", ...engine },
     );
+  }
+  if (command === "stats") {
+    const { positional, flags } = options(rest, ["--raw", "--reset"]);
+    if (positional.length)
+      throw new Error("stats does not accept positional arguments");
+    if (flags["--reset"]) {
+      await resetLocalStats(engine.statsFilePath);
+      stdout.write("[INFO] Local usage statistics reset.\n");
+      return 0;
+    }
+    const apiKey =
+      engine.apiKey?.trim() || (await (engine.keyProvider ?? resolveApiKey)());
+    const local = await readLocalStats(engine.statsFilePath);
+    const remote = await fetchAccountStats(apiKey, engine.fetchImpl);
+    if (flags.raw) {
+      const output = {
+        local,
+        local_jev: local,
+        openrouter_account: remote,
+      };
+      stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+      return 0;
+    }
+    stdout.write(`${formatStatsReport(local, remote)}\n`);
+    return 0;
   }
   throw new Error(`Unknown command: ${command}. Run 'jev --help' for usage.`);
 }

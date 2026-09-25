@@ -215,4 +215,69 @@ describe("stats tracking and reporting", () => {
     expect(stats.total_cost).toBeCloseTo(0.0001);
     expect(stats.operations["decide"]?.count).toBe(1);
   });
+
+  it("runCli executes stats command with formatted and raw output", async () => {
+    const { runCli } = await import("../src/cli/jev.js");
+    await recordStat(
+      {
+        operation: "triage",
+        source: "jev",
+        elapsedSeconds: 0.4,
+        usage: { cost: 0.00005, input_tokens: 50, output_tokens: 10 },
+      },
+      testStatsPath,
+    );
+
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/auth/key")) {
+        return new Response(
+          JSON.stringify({ data: { label: "key-123", usage: 0.01 } }),
+          { status: 200 },
+        );
+      }
+      if (urlStr.includes("/credits")) {
+        return new Response(
+          JSON.stringify({ data: { total_credits: 5.0, total_usage: 0.01 } }),
+          { status: 200 },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    });
+
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    const exitCodeFormatted = await runCli(["stats"], {
+      apiKey: "test-key",
+      fetchImpl: fetchImpl as typeof fetch,
+      statsFilePath: testStatsPath,
+    });
+    expect(exitCodeFormatted).toBe(0);
+    const formattedOutput = writeSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(formattedOutput).toContain("================ VEX & JEV STATS (COMBINED) ================");
+    expect(formattedOutput).toContain("[jev] triage");
+
+    writeSpy.mockClear();
+    const exitCodeRaw = await runCli(["stats", "--raw"], {
+      apiKey: "test-key",
+      fetchImpl: fetchImpl as typeof fetch,
+      statsFilePath: testStatsPath,
+    });
+    expect(exitCodeRaw).toBe(0);
+    const rawOutput = writeSpy.mock.calls.map((c) => String(c[0])).join("");
+    const parsedRaw = JSON.parse(rawOutput);
+    expect(parsedRaw.local.total_requests).toBe(1);
+    expect(parsedRaw.openrouter_account.key.label).toBe("key-123");
+
+    writeSpy.mockClear();
+    const exitCodeReset = await runCli(["stats", "--reset"], {
+      statsFilePath: testStatsPath,
+    });
+    expect(exitCodeReset).toBe(0);
+    const resetOutput = writeSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(resetOutput).toContain("Local usage statistics reset");
+
+    writeSpy.mockRestore();
+  });
 });
+

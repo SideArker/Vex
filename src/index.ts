@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 import { resolveApiKey } from "./core/engine.js";
 import { startServer } from "./mcp/server.js";
+import {
+  fetchAccountStats,
+  formatStatsReport,
+  readLocalStats,
+  resetLocalStats,
+} from "./core/stats.js";
 
 const VERSION = "0.1.0";
 const HELP = `Usage: vex <command>
 
 Commands:
   mcp serve    Start the Vex MCP stdio server
+  stats        Display Vex & Jev combined usage statistics and credit details
   doctor       Check runtime and key availability
   --help       Show this help
   --version    Show package version`;
@@ -31,6 +38,35 @@ async function main(args: string[]): Promise<number> {
       `Vex ${VERSION}\nNode ${process.version}\nOpenRouter key: ${key ? "available" : "missing"}\n`,
     );
     return key ? 0 : 1;
+  }
+  if (args[0] === "stats") {
+    const rest = args.slice(1);
+    const isReset = rest.includes("--reset");
+    const isRaw = rest.includes("--raw");
+    const unknown = rest.filter((a) => a !== "--reset" && a !== "--raw");
+    if (unknown.length > 0) {
+      process.stderr.write(`Unsupported option for stats: ${unknown[0]}\n`);
+      return 2;
+    }
+    if (isReset) {
+      await resetLocalStats();
+      process.stdout.write("[INFO] Local usage statistics reset.\n");
+      return 0;
+    }
+    const key = await resolveApiKey();
+    const local = await readLocalStats();
+    const remote = await fetchAccountStats(key);
+    if (isRaw) {
+      const output = {
+        local,
+        local_jev: local,
+        openrouter_account: remote,
+      };
+      process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+      return 0;
+    }
+    process.stdout.write(`${formatStatsReport(local, remote)}\n`);
+    return 0;
   }
   if (args[0] === "mcp" && args[1] === "serve" && args.length === 2) {
     await startServer();
