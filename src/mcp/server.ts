@@ -8,7 +8,7 @@ import {
   workflowContextSchema,
 } from "../cli/workflow.js";
 
-/** One generic MCP tool using exactly the same public decision path as the CLI. */
+/** MCP tools reuse the CLI decision paths and never execute selected actions. */
 export function createServer(engine: EngineOptions = {}): McpServer {
   const server = new McpServer({ name: "vex", version: "0.1.0" });
   server.registerTool(
