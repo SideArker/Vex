@@ -18,7 +18,8 @@
     "dev": "tsx src/index.ts",
     "build": "tsc --project tsconfig.json",
     "test": "npm run build && vitest run",
-    "check": "tsc --noEmit && tsc --project tests/tsconfig.json"
+    "check": "tsc --noEmit && tsc --project tests/tsconfig.json",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
