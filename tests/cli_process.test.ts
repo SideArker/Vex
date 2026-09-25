@@ -109,7 +109,7 @@ describe("jev process contract", () => {
 });
 
 describe("vex command", () => {
-  it("starts an MCP stdio server with one generic tool", async () => {
+  it("starts an MCP stdio server with decision and workflow tools", async () => {
     const client = new Client({ name: "smoke-test", version: "1.0.0" });
     const transport = new StdioClientTransport({
       command: process.execPath,
@@ -119,7 +119,10 @@ describe("vex command", () => {
     try {
       await client.connect(transport);
       const listed = await client.listTools();
-      expect(listed.tools.map((tool) => tool.name)).toEqual(["vex_choose"]);
+      expect(listed.tools.map((tool) => tool.name)).toEqual([
+        "vex_choose",
+        "vex_workflow",
+      ]);
       const stderr = transport.stderr;
       expect(stderr).not.toBeNull();
       let diagnostic = "";

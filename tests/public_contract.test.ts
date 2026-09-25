@@ -127,7 +127,10 @@ describe("public bounded decision", () => {
         client.connect(clientTransport),
       ]);
       const tools = await client.listTools();
-      expect(tools.tools.map((tool) => tool.name)).toEqual(["vex_choose"]);
+      expect(tools.tools.map((tool) => tool.name)).toEqual([
+        "vex_choose",
+        "vex_workflow",
+      ]);
       const mcpResult = await client.callTool({
         name: "vex_choose",
         arguments: request,
@@ -139,6 +142,94 @@ describe("public bounded decision", () => {
       await server.close();
       await unlink(file);
       await rmdir(directory);
+    }
+  });
+});
+
+describe("MCP workflow", () => {
+  it("returns typed model answers and only a supported route selection", async () => {
+    const context = {
+      runtime: "codex",
+      task: "Implement a focused change",
+      models: {
+        "luna-low": "gpt-6-luna low, routine small task",
+        "sol-medium": "gpt-6-sol medium, broader coding task",
+      },
+    };
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const request = JSON.parse(String(init?.body));
+      expect(request.questions.model.criteria).toEqual(context.models);
+      return new Response(JSON.stringify({
+        answers: {
+          model: {
+            type: "choice",
+            choice: "sol-medium",
+            confidence: 0.9,
+            probabilities: { "luna-low": 0.1, "sol-medium": 0.9 },
+          },
+        },
+      }), { status: 200 });
+    }) as typeof fetch;
+    const server = createServer({ apiKey: "test", fetchImpl });
+    const client = new Client({ name: "test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      const result = await client.callTool({ name: "vex_workflow", arguments: context });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        workflow: {
+          human_review_recommended: false,
+          next_steps: [],
+          selections: { model: "sol-medium" },
+        },
+        response: { answers: { model: { choice: "sol-medium" } } },
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("abstains on weak model evidence and rejects cross-runtime routing", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+      answers: {
+        model: {
+          type: "choice",
+          choice: "sol-medium",
+          confidence: 0.65,
+          probabilities: { "luna-low": 0.45, "sol-medium": 0.55 },
+        },
+      },
+    }), { status: 200 })) as typeof fetch;
+    const server = createServer({ apiKey: "test", fetchImpl });
+    const client = new Client({ name: "test", version: "1.0.0" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      const models = { "luna-low": "Small", "sol-medium": "Broader" };
+      const result = await client.callTool({
+        name: "vex_workflow",
+        arguments: { runtime: "codex", task: "Route", models },
+      });
+      expect(result.structuredContent).toMatchObject({
+        workflow: {
+          human_review_recommended: true,
+          next_steps: ["Uncertain model choice"],
+          selections: {},
+        },
+      });
+      const error = await client.callTool({
+        name: "vex_workflow",
+        arguments: { runtime: "antigravity", task: "Route", models },
+      });
+      expect(error.isError).toBe(true);
+      expect(error.structuredContent).toMatchObject({ error: true });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      await client.close();
+      await server.close();
     }
   });
 });
