@@ -43,6 +43,14 @@ describe("public bounded decision", () => {
     expect(tie).toMatchObject({ choice: "review", abstained: false });
     await expect(decide(routing, { apiKey: "test", fetchImpl: async () => answer("review", 0.9, { review: 0.8, none: 0.2 }) })).rejects.toThrow("Invalid routing probabilities");
   });
+  it("allows one forced routing option while ordinary decisions still need two", async () => {
+    const options = [request.options[0]!];
+    const routing = await decide({ ...request, options, decisionType: "routing" }, {
+      apiKey: "test", fetchImpl: async () => answer("review", 0.2, { review: 0.8, __jev_abstain__: 0.2 }),
+    });
+    expect(routing).toMatchObject({ choice: "review", abstained: false });
+    await expect(decide({ ...request, options }, { apiKey: "test", fetchImpl: async () => answer() })).rejects.toThrow("Ordinary decisions need at least two options");
+  });
   it("returns one versioned, allowed choice", async () => {
     const fetchImpl = vi.fn(async () => answer());
     expect(

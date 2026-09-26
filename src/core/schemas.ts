@@ -102,7 +102,7 @@ export const boundedDecisionSchema = z
           })
           .strict(),
       )
-      .min(2)
+      .min(1)
       .max(12)
       .refine(
         (items) => new Set(items.map((item) => item.id)).size === items.length,
@@ -120,7 +120,8 @@ export const boundedDecisionSchema = z
       ])
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((request) => request.decisionType === "routing" || request.options.length >= 2, "Ordinary decisions need at least two options");
 export type BoundedDecisionRequest = z.infer<typeof boundedDecisionSchema>;
 export interface BoundedDecisionResult {
   contractVersion: "1";
