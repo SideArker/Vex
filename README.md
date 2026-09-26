@@ -100,9 +100,19 @@ flowchart TD
 
 ## 🚀 Quickstart in 60 Seconds
 
-### 1. Requirements & Build
+### 1. Installation & Requirements
 Requires **Node.js 20+**.
 
+#### Quick Download via npm
+```sh
+# Install globally
+npm install -g @sidearker/vex-mcp
+
+# Or run directly without installation
+npx -y @sidearker/vex-mcp
+```
+
+#### Or Build from Source
 ```sh
 # Clone repository
 git clone https://github.com/SideArker/Vex.git

@@ -1,3 +1,10 @@
+# Quick download / installation via npm:
+#   npm install -g @sidearker/vex-mcp
+# Run directly without installation:
+#   npx -y @sidearker/vex-mcp
+# Or add to a project:
+#   npm install @sidearker/vex-mcp
+
 # Dependencies
 node_modules/
 
