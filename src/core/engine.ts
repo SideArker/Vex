@@ -5,11 +5,16 @@ import { performance } from "node:perf_hooks";
 import {
   DECISIONS_URL,
   DEFAULT_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_TYPESAFE_MODEL,
+  OPENROUTER_DECISIONS_URL,
+  TYPESAFE_SYSTEMONE_URL,
   boundedDecisionSchema,
   requestSchema,
   responseSchema,
   type BoundedDecisionRequest,
   type BoundedDecisionResult,
+  type DecisionProvider,
   type DecisionRequest,
   type DecisionResponse,
 } from "./schemas.js";
@@ -18,6 +23,9 @@ import { recordStat } from "./stats.js";
 export interface EngineOptions {
   apiKey?: string;
   keyProvider?: () => Promise<string | null>;
+  provider?: DecisionProvider;
+  baseUrl?: string;
+  model?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   recordStats?: boolean;
@@ -26,9 +34,25 @@ export interface EngineOptions {
   source?: "vex" | "jev" | string;
 }
 
-export async function resolveApiKey(): Promise<string | null> {
-  const environment = process.env.OPENROUTER_API_KEY?.trim();
-  if (environment) return environment;
+export async function resolveTypeSafeApiKey(): Promise<string | null> {
+  const env = (process.env.TYPESAFE_API_KEY || process.env.JEV_API_KEY)?.trim();
+  if (env) return env;
+  for (const filename of [".typesafe_key", ".jev_key"]) {
+    try {
+      const content = (
+        await readFile(join(homedir(), filename), "utf8")
+      ).trim();
+      if (content) return content;
+    } catch {
+      // Continue searching
+    }
+  }
+  return null;
+}
+
+export async function resolveOpenRouterApiKey(): Promise<string | null> {
+  const env = process.env.OPENROUTER_API_KEY?.trim();
+  if (env) return env;
   try {
     return (
       (await readFile(join(homedir(), ".openrouter_key"), "utf8")).trim() ||
@@ -37,6 +61,153 @@ export async function resolveApiKey(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+export async function resolveApiKey(
+  preferredProvider?: DecisionProvider,
+): Promise<string | null> {
+  if (preferredProvider === "typesafe") {
+    return resolveTypeSafeApiKey();
+  }
+  if (preferredProvider === "openrouter") {
+    return resolveOpenRouterApiKey();
+  }
+  const envProvider = (
+    process.env.JEV_PROVIDER || process.env.VEX_PROVIDER
+  )?.trim().toLowerCase() as DecisionProvider | undefined;
+  if (envProvider === "typesafe") {
+    return (await resolveTypeSafeApiKey()) ?? (await resolveOpenRouterApiKey());
+  }
+  if (envProvider === "openrouter") {
+    return (await resolveOpenRouterApiKey()) ?? (await resolveTypeSafeApiKey());
+  }
+  // Auto-detection: TypeSafe key if present, then OpenRouter key
+  const typeSafe = await resolveTypeSafeApiKey();
+  if (typeSafe) return typeSafe;
+  return resolveOpenRouterApiKey();
+}
+
+export interface ProviderConfig {
+  provider: DecisionProvider;
+  apiKey: string;
+  url: string;
+  model: string;
+  headers: Record<string, string>;
+}
+
+export async function resolveProviderConfig(
+  options: EngineOptions = {},
+): Promise<ProviderConfig> {
+  const envProvider = (
+    process.env.JEV_PROVIDER || process.env.VEX_PROVIDER
+  )?.trim().toLowerCase() as DecisionProvider | undefined;
+  const specifiedProvider =
+    options.provider ||
+    (envProvider === "typesafe" || envProvider === "openrouter"
+      ? envProvider
+      : undefined);
+
+  let provider: DecisionProvider;
+  let apiKey: string | null = null;
+
+  if (options.apiKey?.trim()) {
+    apiKey = options.apiKey.trim();
+    if (specifiedProvider) {
+      provider = specifiedProvider;
+    } else if (apiKey.startsWith("ts-") || apiKey.startsWith("ts_")) {
+      provider = "typesafe";
+    } else if (apiKey.startsWith("sk-or-")) {
+      provider = "openrouter";
+    } else {
+      // Unspecified key defaults to openrouter for backwards compatibility with existing callers/tests
+      provider = "openrouter";
+    }
+  } else if (options.keyProvider) {
+    apiKey = (await options.keyProvider())?.trim() ?? null;
+    if (specifiedProvider) {
+      provider = specifiedProvider;
+    } else if (apiKey?.startsWith("ts-") || apiKey?.startsWith("ts_")) {
+      provider = "typesafe";
+    } else {
+      provider = "openrouter";
+    }
+  } else if (specifiedProvider === "typesafe") {
+    provider = "typesafe";
+    apiKey = await resolveTypeSafeApiKey();
+  } else if (specifiedProvider === "openrouter") {
+    provider = "openrouter";
+    apiKey = await resolveOpenRouterApiKey();
+  } else {
+    // Auto-detect based on available keys
+    const typeSafeKey = await resolveTypeSafeApiKey();
+    if (typeSafeKey) {
+      provider = "typesafe";
+      apiKey = typeSafeKey;
+    } else {
+      const openRouterKey = await resolveOpenRouterApiKey();
+      if (openRouterKey) {
+        provider = "openrouter";
+        apiKey = openRouterKey;
+      } else {
+        provider = "typesafe";
+      }
+    }
+  }
+
+  if (!apiKey) {
+    if (specifiedProvider === "typesafe") {
+      throw new DecisionError(
+        "Missing TypeSafe API key. Set TYPESAFE_API_KEY (or JEV_API_KEY) or provide ~/.typesafe_key.",
+      );
+    }
+    if (specifiedProvider === "openrouter") {
+      throw new DecisionError(
+        "Missing OpenRouter API key. Set OPENROUTER_API_KEY or provide ~/.openrouter_key.",
+      );
+    }
+    throw new DecisionError(
+      "Missing API key. Set TYPESAFE_API_KEY (or ~/.typesafe_key) for TypeSafe direct, or OPENROUTER_API_KEY (or ~/.openrouter_key) for OpenRouter.",
+    );
+  }
+
+  const isTypeSafe = provider === "typesafe";
+  const url =
+    options.baseUrl?.trim() ||
+    (isTypeSafe
+      ? process.env.TYPESAFE_BASE_URL?.trim() ||
+        process.env.JEV_BASE_URL?.trim() ||
+        TYPESAFE_SYSTEMONE_URL
+      : process.env.OPENROUTER_BASE_URL?.trim() || OPENROUTER_DECISIONS_URL);
+
+  const model =
+    options.model?.trim() ||
+    (isTypeSafe
+      ? process.env.TYPESAFE_MODEL?.trim() ||
+        process.env.JEV_MODEL?.trim() ||
+        DEFAULT_TYPESAFE_MODEL
+      : process.env.OPENROUTER_MODEL?.trim() ||
+        process.env.JEV_MODEL?.trim() ||
+        DEFAULT_OPENROUTER_MODEL);
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  if (isTypeSafe) {
+    headers["X-Client"] = "vex";
+  } else {
+    headers["HTTP-Referer"] = "https://github.com/typesafe-ai/jev";
+    headers["X-Title"] = "Jev";
+  }
+
+  return {
+    provider,
+    apiKey,
+    url,
+    model,
+    headers,
+  };
 }
 
 export class DecisionError extends Error {
@@ -56,26 +227,16 @@ async function callDecisions(
   options: EngineOptions = {},
 ): Promise<DecisionResponse> {
   const request = requestSchema.parse(input);
-  const apiKey =
-    options.apiKey?.trim() || (await (options.keyProvider ?? resolveApiKey)());
-  if (!apiKey)
-    throw new DecisionError(
-      "Missing OpenRouter API key. Set OPENROUTER_API_KEY or provide an existing ~/.openrouter_key file.",
-    );
+  const config = await resolveProviderConfig(options);
   const start = performance.now();
   let response: Response;
   try {
-    response = await (options.fetchImpl ?? fetch)(DECISIONS_URL, {
+    response = await (options.fetchImpl ?? fetch)(config.url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://github.com/typesafe-ai/jev",
-        "X-Title": "Jev",
-      },
+      headers: config.headers,
       body: JSON.stringify({
         ...request,
-        model: request.model ?? DEFAULT_MODEL,
+        model: request.model ?? config.model,
       }),
       signal: AbortSignal.timeout(options.timeoutMs ?? 45_000),
     });
@@ -85,24 +246,26 @@ async function callDecisions(
     );
   }
   let body: unknown;
+  const providerLabel =
+    config.provider === "typesafe" ? "TypeSafe" : "OpenRouter";
   try {
     body = await response.json();
   } catch {
     throw new DecisionError(
-      "OpenRouter returned invalid JSON",
+      `${providerLabel} returned invalid JSON`,
       response.status,
     );
   }
   if (!response.ok)
     throw new DecisionError(
-      `OpenRouter request failed (HTTP ${response.status})`,
+      `${providerLabel} request failed (HTTP ${response.status})`,
       response.status,
       body,
     );
   const parsed = responseSchema.safeParse(body);
   if (!parsed.success)
     throw new DecisionError(
-      "OpenRouter returned an invalid decision response",
+      `${providerLabel} returned an invalid decision response`,
       response.status,
       parsed.error.flatten(),
     );

@@ -1,7 +1,13 @@
 import { z } from "zod";
 
-export const DEFAULT_MODEL = "typesafe/jev-1.13";
-export const DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
+export type DecisionProvider = "typesafe" | "openrouter";
+export const DEFAULT_TYPESAFE_MODEL = "jev-latest";
+export const DEFAULT_OPENROUTER_MODEL = "typesafe/jev-1.13";
+export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
+export const OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
+
+export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL;
+export const DECISIONS_URL = OPENROUTER_DECISIONS_URL;
 
 const criteria = z
   .record(z.string().min(1), z.string().min(1))
