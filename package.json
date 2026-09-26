@@ -4,6 +4,7 @@
   "private": false,
   "type": "module",
   "description": "TypeScript Jev decision engine, CLI, and Vex MCP server",
+  "license": "MIT",
   "bin": {
     "jev": "./dist/cli/jev.js",
     "vex": "./dist/index.js"
@@ -11,6 +12,7 @@
   "files": [
     "dist",
     "README.md",
+    "LICENSE",
     "docs",
     "integrations/codex"
   ],
