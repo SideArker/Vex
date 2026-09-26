@@ -131,3 +131,34 @@ export interface BoundedDecisionResult {
   probabilities?: Record<string, number>;
   reason?: string;
 }
+
+export const toolSelectionSchema = z
+  .object({
+    task: z.string().trim().min(1),
+    tools: z
+      .record(z.string().trim().min(1), z.string().trim().min(1))
+      .refine(
+        (val) => Object.keys(val).length >= 2 && Object.keys(val).length <= 12,
+        "Expected 2-12 tools",
+      ),
+    context: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type ToolSelectionRequest = z.infer<typeof toolSelectionSchema>;
+
+export const gateSchema = z
+  .object({
+    action: z.string().trim().min(1),
+    context: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type GateRequest = z.infer<typeof gateSchema>;
+
+export const verifySchema = z
+  .object({
+    task: z.string().trim().min(1),
+    acceptance: z.string().trim().min(1),
+    evidence: z.string().trim().min(1),
+  })
+  .strict();
+export type VerifyRequest = z.infer<typeof verifySchema>;

@@ -213,7 +213,10 @@ def ask_jev(question: str, options: list[dict[str, str]], context: str = None) -
 - Read `result.choice` to dispatch the subagent.
 
 ### For Antigravity:
-- **Universal Decision Tool**: Use `vex_choose` as the primary decision engine for tool selection, skill selection, subagent delegation (`self` vs `research`), and architectural choices.
+- **Lean Tool Suite**:
+  - `vex_choose`: Bounded decisions among 2–12 options (architectural approaches, bug root cause hypotheses, skill selection, subagent delegation).
+  - `vex_tool`: Pick the leanest tool path from candidate tools to minimize context token bloat.
+  - `vex_gate`: Pre-action safety gate assessing destructive risk and human confirmation before executing high-risk commands or migrations.
+  - `vex_verify`: Post-work acceptance gate verifying observed evidence satisfies criteria before completing tasks.
 - **Rule**: Antigravity does not support dynamic model routing; never attempt model routing in Antigravity.
 - **Rule**: Do not use Jev to override authorization, security sandboxes, or user permissions.
-- **Use**: Use `vex_choose` for bounded specialist selection, tool disambiguation when multiple valid tools remain, evidence sufficiency checks, and pre-action safety gating.

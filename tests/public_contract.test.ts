@@ -145,6 +145,9 @@ describe("public bounded decision", () => {
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name)).toEqual([
         "vex_choose",
+        "vex_tool",
+        "vex_gate",
+        "vex_verify",
       ]);
       const mcpResult = await client.callTool({
         name: "vex_choose",
@@ -259,6 +262,143 @@ describe("CLI workflow", () => {
       stdout.mockRestore();
       await unlink(file);
       await rmdir(directory);
+    }
+  });
+});
+
+describe("MCP lean tools: vex_tool, vex_gate, vex_verify", () => {
+  it("vex_tool selects the best tool", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          answers: {
+            decision: {
+              type: "choice",
+              choice: "view_file",
+              confidence: 0.92,
+              probabilities: {
+                view_file: 0.85,
+                run_command: 0.1,
+                __jev_abstain__: 0.05,
+              },
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+    const server = createServer({ apiKey: "test", fetchImpl });
+    const client = new Client({ name: "test", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([
+        server.connect(serverTransport),
+        client.connect(clientTransport),
+      ]);
+      const result = await client.callTool({
+        name: "vex_tool",
+        arguments: {
+          task: "Inspect unit test failure",
+          tools: {
+            view_file: "View test file source",
+            run_command: "Run pytest",
+          },
+        },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        tool: "view_file",
+        abstained: false,
+        confidence: 0.92,
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("vex_gate evaluates destructive actions", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          answers: {
+            is_destructive: { type: "noul", noul: 0.95 },
+            escalate_to_human: { type: "noul", noul: 0.85 },
+            risk_level: { type: "score", score: 2 },
+          },
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+    const server = createServer({ apiKey: "test", fetchImpl });
+    const client = new Client({ name: "test", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([
+        server.connect(serverTransport),
+        client.connect(clientTransport),
+      ]);
+      const result = await client.callTool({
+        name: "vex_gate",
+        arguments: {
+          action: "git reset --hard origin/main",
+        },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        action: "git reset --hard origin/main",
+        is_destructive: true,
+        escalate_to_human: true,
+        risk_level: "High",
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("vex_verify evaluates acceptance criteria against evidence", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          answers: {
+            enough_information: { type: "noul", noul: 0.9 },
+            needs_verification: { type: "noul", noul: 0.1 },
+            task_complete: { type: "noul", noul: 0.95 },
+          },
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+    const server = createServer({ apiKey: "test", fetchImpl });
+    const client = new Client({ name: "test", version: "1.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([
+        server.connect(serverTransport),
+        client.connect(clientTransport),
+      ]);
+      const result = await client.callTool({
+        name: "vex_verify",
+        arguments: {
+          task: "Add login tests",
+          acceptance: "All login tests pass with 100% coverage",
+          evidence: "Added 4 test cases; pytest passes 4/4",
+        },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(result.structuredContent).toMatchObject({
+        task_complete: true,
+        needs_verification: false,
+        evidence_sufficient: true,
+        next_steps: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
     }
   });
 });

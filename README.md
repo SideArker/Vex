@@ -19,7 +19,7 @@ Autonomous AI coding agents frequently struggle with confirmation bias, tool hal
 - **Mathematical Abstention Guarantee**: Automatically abstains (`choice: null`, `abstained: true`) if confidence is below `0.70` or the top option's probability lead over the runner-up is below `0.15`.
 - **Dual Interface**:
   - **`jev` CLI**: Command-line interface for human operators, shell scripts, and subprocess piping.
-  - **`vex` MCP Server**: High-performance, lean stdio Model Context Protocol server exposing `vex_choose`.
+  - **`vex` MCP Server**: High-performance, lean stdio Model Context Protocol server exposing `vex_choose`, `vex_tool`, `vex_gate`, and `vex_verify`.
 - **Multi-Runtime Ready**: First-class workflows for Codex (with Pace agent routing), Claude Desktop, Cursor, and Antigravity.
 - **Non-Execution Invariant**: Jev is strictly advisory. It never executes shell commands or alters files; the caller retains execution and verification responsibility.
 
@@ -34,7 +34,7 @@ flowchart LR
     end
 
     subgraph VexPackage["Vex & Jev Boundary"]
-        MCP["vex MCP Server\n(vex_choose)"]
+        MCP["vex MCP Server\n(vex_choose / vex_tool / vex_gate / vex_verify)"]
         CLI["jev CLI\n(decide / workflow / gate / triage)"]
         Engine["Core Decision Engine\n(Threshold & Abstention Validation)"]
     end
@@ -134,8 +134,11 @@ Operations Breakdown:
 
 ## MCP Server Setup
 
-Vex provides a high-performance, lean stdio MCP server exposing `vex_choose`:
-- `vex_choose`: Bounded choice selection with threshold validation ($\ge 0.70$ confidence, $\ge 0.15$ probability lead) across 2 to 12 supplied options. Zero schema bloat and minimal context token footprint.
+Vex provides a high-performance, lean stdio MCP server exposing 4 purpose-built tools:
+1. `vex_choose`: Bounded choice selection with threshold validation ($\ge 0.70$ confidence, $\ge 0.15$ probability lead) across 2 to 12 supplied options.
+2. `vex_tool`: Dedicated, lean tool selection picking the optimal tool from candidate tools without schema bloat.
+3. `vex_gate`: Pre-action safety gate evaluating whether a proposed action is destructive or requires human confirmation.
+4. `vex_verify`: Acceptance verification gate evaluating evidence against criteria before declaring task completion.
 
 ### Configuration Examples
 

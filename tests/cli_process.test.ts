@@ -121,6 +121,9 @@ describe("vex command", () => {
       const listed = await client.listTools();
       expect(listed.tools.map((tool) => tool.name)).toEqual([
         "vex_choose",
+        "vex_tool",
+        "vex_gate",
+        "vex_verify",
       ]);
       const stderr = transport.stderr;
       expect(stderr).not.toBeNull();
