@@ -278,6 +278,7 @@ async function callDecisions(
       {
         operation,
         source,
+        provider: config.provider,
         elapsedSeconds: elapsed,
         usage: parsed.data.usage,
       },

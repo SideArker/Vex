@@ -9,6 +9,7 @@ export interface OperationStat {
   input_tokens: number;
   output_tokens: number;
   source?: "vex" | "jev" | string;
+  provider?: "typesafe" | "openrouter" | string;
 }
 
 export interface SourceStat {
@@ -101,6 +102,7 @@ export async function readLocalStats(customPath?: string): Promise<LocalStats> {
 export interface RecordStatInput {
   operation: string;
   source?: "vex" | "jev" | string;
+  provider?: "typesafe" | "openrouter" | string;
   elapsedSeconds: number;
   usage?: {
     cost?: number;
@@ -148,6 +150,7 @@ export async function recordStat(
           input_tokens: 0,
           output_tokens: 0,
           source,
+          provider: input.provider,
         };
     op.count += 1;
     op.cost += cost;
@@ -155,6 +158,7 @@ export async function recordStat(
     op.input_tokens += inputTokens;
     op.output_tokens += outputTokens;
     op.source = source;
+    if (input.provider) op.provider = input.provider;
     stats.operations[input.operation] = op;
 
     if (!stats.sources) stats.sources = {};
