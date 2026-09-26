@@ -4,6 +4,8 @@ Set `decisionType` to `"routing"` on `vex_choose` when the caller must select on
 
 Routing responses never abstain. Missing, incomplete, or invalid probability data produces a tool error. The caller should validate the returned option ID and retry or surface the error. Omitting `decisionType` preserves the ordinary bounded-decision contract, including abstention on weak evidence.
 
+Forced routing accepts one to twelve supplied options. Ordinary bounded decisions still require at least two.
+
 Example request:
 
 ```json
