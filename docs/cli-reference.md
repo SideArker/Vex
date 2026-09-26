@@ -27,7 +27,21 @@ npm exec -- vex --help
 
 ---
 
-## 2. Command Index
+## 2. Global Provider Options
+
+All commands accept global flags for provider and endpoint selection:
+
+| Flag | Shorthand | Description | Default |
+|---|:---:|---|---|
+| `--provider <name>` | `-p` | Select provider: `typesafe` (direct API) or `openrouter` | Auto-detect (TypeSafe first) |
+| `--model <name>` | `-m` | Override decision model | `jev-latest` (TypeSafe) / `typesafe/jev-1.13` (OpenRouter) |
+| `--base-url <url>` | | Override API endpoint URL | `https://api.typesafe.ai/v1/systemone` / `https://openrouter.ai/api/alpha/decisions` |
+
+You can also set these via environment variables: `JEV_PROVIDER`, `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `TYPESAFE_BASE_URL`, and `OPENROUTER_BASE_URL`.
+
+---
+
+## 3. Command Index
 
 ### 2.1 `jev decide`
 Make a single bounded choice decision between 2 and 12 options.
