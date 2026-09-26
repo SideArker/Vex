@@ -21,8 +21,8 @@
     "access": "public"
   },
   "bin": {
-    "jev": "./dist/cli/jev.js",
-    "vex": "./dist/index.js"
+    "jev": "dist/cli/jev.js",
+    "vex": "dist/index.js"
   },
   "files": [
     "dist",
