@@ -7,6 +7,8 @@ import {
 } from "./core/engine.js";
 import { DEFAULT_TYPESAFE_MODEL } from "./core/schemas.js";
 import { startServer } from "./mcp/server.js";
+import { realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import {
   fetchAccountStats,
   formatStatsReport,
@@ -124,13 +126,24 @@ async function main(args: string[]): Promise<number> {
   return 2;
 }
 
-main(process.argv.slice(2))
-  .then((code) => {
-    process.exitCode = code;
-  })
-  .catch((error: unknown) => {
-    process.stderr.write(
-      `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-    process.exitCode = 1;
-  });
+function isDirectExecution(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  main(process.argv.slice(2))
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(
+        `[ERROR] ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      process.exitCode = 1;
+    });
+}

@@ -1,10 +1,25 @@
 {
-  "name": "vex-mcp",
+  "name": "@sidearker/vex-mcp",
   "version": "0.1.0",
   "private": false,
   "type": "module",
   "description": "TypeScript Jev decision engine, CLI, and Vex MCP server",
   "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SideArker/Vex.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "jev": "./dist/cli/jev.js",
     "vex": "./dist/index.js"

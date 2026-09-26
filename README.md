@@ -307,7 +307,7 @@ git diff | node dist/cli/jev.js verify-diff -
 You can use Vex directly as a typed TypeScript library in your own services, agents, or CLI tools:
 
 ```typescript
-import { decide, resolveProviderConfig, selectChoice } from "vex-mcp";
+import { decide, resolveProviderConfig, selectChoice } from "@sidearker/vex-mcp";
 
 // 1. Make a bounded decision with TypeSafe direct
 const result = await decide({
