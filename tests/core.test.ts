@@ -1,5 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
-import { decide, decideTyped, DecisionError } from "../src/core/engine.js";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import {
+  decide,
+  decideTyped,
+  DecisionError,
+  resolveApiKey,
+  resolveOpenRouterApiKey,
+  resolveProviderConfig,
+  resolveTypeSafeApiKey,
+} from "../src/core/engine.js";
+import {
+  DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_TYPESAFE_MODEL,
+  OPENROUTER_DECISIONS_URL,
+  TYPESAFE_SYSTEMONE_URL,
+} from "../src/core/schemas.js";
 import { selectChoice } from "../src/core/decisions.js";
 import {
   buildWorkflowRequest,
@@ -269,5 +283,129 @@ describe("bounded decisions", () => {
         },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("multi-provider resolution and TypeSafe direct keys", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env.TYPESAFE_API_KEY;
+    delete process.env.JEV_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.JEV_PROVIDER;
+    delete process.env.VEX_PROVIDER;
+    delete process.env.TYPESAFE_BASE_URL;
+    delete process.env.JEV_BASE_URL;
+    delete process.env.TYPESAFE_MODEL;
+    delete process.env.OPENROUTER_MODEL;
+    delete process.env.JEV_MODEL;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("resolves TypeSafe API key from environment variables", async () => {
+    process.env.TYPESAFE_API_KEY = "ts-test-key-1";
+    expect(await resolveTypeSafeApiKey()).toBe("ts-test-key-1");
+    expect(await resolveApiKey()).toBe("ts-test-key-1");
+
+    delete process.env.TYPESAFE_API_KEY;
+    process.env.JEV_API_KEY = "ts-test-key-2";
+    expect(await resolveTypeSafeApiKey()).toBe("ts-test-key-2");
+    expect(await resolveApiKey()).toBe("ts-test-key-2");
+  });
+
+  it("resolves OpenRouter API key from environment variable", async () => {
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-test";
+    expect(await resolveOpenRouterApiKey()).toBe("sk-or-v1-test");
+    expect(await resolveApiKey()).toBe("sk-or-v1-test");
+  });
+
+  it("auto-detects provider configuration from TypeSafe key", async () => {
+    process.env.TYPESAFE_API_KEY = "ts-live-12345";
+    const config = await resolveProviderConfig();
+    expect(config.provider).toBe("typesafe");
+    expect(config.apiKey).toBe("ts-live-12345");
+    expect(config.url).toBe(TYPESAFE_SYSTEMONE_URL);
+    expect(config.model).toBe(DEFAULT_TYPESAFE_MODEL);
+    expect(config.headers["X-Client"]).toBe("vex");
+    expect(config.headers["Authorization"]).toBe("Bearer ts-live-12345");
+  });
+
+  it("auto-detects provider configuration from OpenRouter key", async () => {
+    process.env.OPENROUTER_API_KEY = "sk-or-v1-67890";
+    const config = await resolveProviderConfig();
+    expect(config.provider).toBe("openrouter");
+    expect(config.apiKey).toBe("sk-or-v1-67890");
+    expect(config.url).toBe(OPENROUTER_DECISIONS_URL);
+    expect(config.model).toBe(DEFAULT_OPENROUTER_MODEL);
+    expect(config.headers["HTTP-Referer"]).toBe("https://github.com/typesafe-ai/jev");
+  });
+
+  it("respects explicit provider option and key prefix", async () => {
+    const configTypeSafe = await resolveProviderConfig({
+      apiKey: "custom-key",
+      provider: "typesafe",
+    });
+    expect(configTypeSafe.provider).toBe("typesafe");
+    expect(configTypeSafe.url).toBe(TYPESAFE_SYSTEMONE_URL);
+
+    const configPrefix = await resolveProviderConfig({
+      apiKey: "ts-prefix-key",
+    });
+    expect(configPrefix.provider).toBe("typesafe");
+
+    const configOpenRouterPrefix = await resolveProviderConfig({
+      apiKey: "sk-or-v1-abc",
+    });
+    expect(configOpenRouterPrefix.provider).toBe("openrouter");
+  });
+
+  it("respects custom base URL and model overrides", async () => {
+    process.env.TYPESAFE_API_KEY = "ts-test";
+    const config = await resolveProviderConfig({
+      baseUrl: "https://my-proxy.internal/v1/systemone",
+      model: "jev-fast",
+    });
+    expect(config.url).toBe("https://my-proxy.internal/v1/systemone");
+    expect(config.model).toBe("jev-fast");
+  });
+
+  it("executes decisions directly via TypeSafe endpoint with jev-latest", async () => {
+    const fetchImpl = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        expect(String(url)).toBe(TYPESAFE_SYSTEMONE_URL);
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.model).toBe(DEFAULT_TYPESAFE_MODEL);
+        expect((init?.headers as Record<string, string>)["X-Client"]).toBe("vex");
+        return new Response(
+          JSON.stringify({
+            model: "jev-latest",
+            answers: {
+              route: {
+                type: "choice",
+                choice: "a",
+                confidence: 0.95,
+                probabilities: { a: 0.95, b: 0.05 },
+              },
+            },
+            usage: { input_tokens: 120, output_tokens: 15 },
+          }),
+          { status: 200 },
+        );
+      },
+    );
+
+    const result = await decideTyped(request, {
+      apiKey: "ts-live-test-key",
+      provider: "typesafe",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(result.answers.route.type).toBe("choice");
+    expect(result.answers.route.choice).toBe("a");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

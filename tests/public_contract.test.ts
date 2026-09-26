@@ -401,4 +401,52 @@ describe("MCP lean tools: vex_tool, vex_gate, vex_verify", () => {
       await server.close();
     }
   });
+
+  it("runs jev doctor reporting multi-key status and active provider", async () => {
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      const code = await runCli(["doctor"], {
+        apiKey: "ts-live-test",
+        provider: "typesafe",
+      });
+      expect(code).toBe(0);
+      const output = writeSpy.mock.calls.map((c) => String(c[0])).join("");
+      expect(output).toContain("Active provider: typesafe");
+      expect(output).toContain("Model: jev-latest");
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it("handles CLI provider flag --provider typesafe in decide command", async () => {
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toBe("https://api.typesafe.ai/v1/systemone");
+      return answer();
+    });
+    try {
+      const code = await runCli(
+        [
+          "decide",
+          "What next?",
+          "--option",
+          "review=Review docs",
+          "--option",
+          "none=Gather evidence",
+          "--provider",
+          "typesafe",
+          "--json",
+        ],
+        { apiKey: "ts-test-key", fetchImpl: fetchImpl as typeof fetch },
+      );
+      expect(code).toBe(0);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const output = writeSpy.mock.calls.map((c) => String(c[0])).join("");
+      const parsed = JSON.parse(output.trim());
+      expect(parsed.choice).toBe("review");
+      expect(parsed.contractVersion).toBe("1");
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
 });
