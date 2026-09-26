@@ -261,6 +261,6 @@ export function createServer(engine: EngineOptions = {}): McpServer {
   return server;
 }
 
-export async function startServer(): Promise<void> {
-  await createServer().connect(new StdioServerTransport());
+export async function startServer(engine: EngineOptions = {}): Promise<void> {
+  await createServer(engine).connect(new StdioServerTransport());
 }

@@ -9,6 +9,9 @@ import {
   decideTyped,
   errorResult,
   resolveApiKey,
+  resolveOpenRouterApiKey,
+  resolveProviderConfig,
+  resolveTypeSafeApiKey,
   type EngineOptions,
 } from "../core/engine.js";
 import { formatSummary, routeIntent } from "../core/decisions.js";
@@ -19,8 +22,10 @@ import {
 } from "./workflow.js";
 import {
   DEFAULT_MODEL,
+  DEFAULT_TYPESAFE_MODEL,
   boundedDecisionSchema,
   requestSchema,
+  type DecisionProvider,
   type DecisionRequest,
 } from "../core/schemas.js";
 import {
@@ -48,14 +53,19 @@ Commands:
   doctor                       Check installation and key availability
   --version, --help            Show version or this help
 
+Options:
+  --provider, -p <name>        Select provider: 'typesafe' (direct) or 'openrouter'
+  --model, -m <model>          Override decision model (e.g. 'jev-latest', 'typesafe/jev-1.13')
+  --base-url <url>             Override API endpoint URL
+
 Use 'jev decide --json' for one versioned JSON result on stdout.
 Common legacy options: --raw, --out <file>. Input file '-' means stdin.
 Examples:
-  jev decide request.json
+  jev decide request.json --provider typesafe
   jev decide "What next?" --option "review=Review docs" --option "none=Gather evidence" --context "Tests passed"
   cat request.json | jev decide --json
   jev workflow workflow.json --raw
-Inputs are sent to OpenRouter; sanitize sensitive text before use.`;
+Inputs are evaluated by TypeSafe Jev (direct or via OpenRouter); sanitize sensitive text before use.`;
 
 async function readInput(path: string): Promise<string> {
   if (path !== "-") return readFile(path, "utf8");
@@ -204,7 +214,60 @@ export async function runCli(
   argv: string[],
   engine: EngineOptions = {},
 ): Promise<number> {
-  const [command, ...rest] = argv;
+  const cleanedArgv: string[] = [];
+  let cliProvider: DecisionProvider | undefined;
+  let cliModel: string | undefined;
+  let cliBaseUrl: string | undefined;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--provider" || arg === "-p") {
+      const val = argv[++i];
+      if (val !== "typesafe" && val !== "openrouter") {
+        throw new Error("Provider must be 'typesafe' or 'openrouter'");
+      }
+      cliProvider = val;
+      continue;
+    }
+    if (arg.startsWith("--provider=")) {
+      const val = arg.slice("--provider=".length);
+      if (val !== "typesafe" && val !== "openrouter") {
+        throw new Error("Provider must be 'typesafe' or 'openrouter'");
+      }
+      cliProvider = val as DecisionProvider;
+      continue;
+    }
+    if (arg === "--model" || arg === "-m") {
+      const val = argv[++i];
+      if (!val) throw new Error("Missing value for --model");
+      cliModel = val;
+      continue;
+    }
+    if (arg.startsWith("--model=")) {
+      cliModel = arg.slice("--model=".length);
+      continue;
+    }
+    if (arg === "--base-url") {
+      const val = argv[++i];
+      if (!val) throw new Error("Missing value for --base-url");
+      cliBaseUrl = val;
+      continue;
+    }
+    if (arg.startsWith("--base-url=")) {
+      cliBaseUrl = arg.slice("--base-url=".length);
+      continue;
+    }
+    cleanedArgv.push(arg);
+  }
+
+  const effectiveEngine: EngineOptions = {
+    ...engine,
+    ...(cliProvider ? { provider: cliProvider } : {}),
+    ...(cliModel ? { model: cliModel } : {}),
+    ...(cliBaseUrl ? { baseUrl: cliBaseUrl } : {}),
+  };
+
+  const [command, ...rest] = cleanedArgv;
   if (
     !command ||
     command === "--help" ||
@@ -220,11 +283,21 @@ export async function runCli(
   }
   if (command === "doctor") {
     if (rest.length) throw new Error("doctor takes no options");
-    const key = await resolveApiKey();
+    const typeSafeKey = await resolveTypeSafeApiKey();
+    const openRouterKey = await resolveOpenRouterApiKey();
+    let activeProvider = "none";
+    let activeModel = DEFAULT_TYPESAFE_MODEL;
+    try {
+      const config = await resolveProviderConfig(effectiveEngine);
+      activeProvider = config.provider;
+      activeModel = config.model;
+    } catch {
+      // No active provider
+    }
     stdout.write(
-      `Jev ${VERSION}\nNode ${process.version}\nOpenRouter key: ${key ? "available" : "missing"}\nModel: ${DEFAULT_MODEL}\n`,
+      `Jev ${VERSION}\nNode ${process.version}\nActive provider: ${activeProvider}\nTypeSafe key: ${typeSafeKey ? "available" : "missing"}\nOpenRouter key: ${openRouterKey ? "available" : "missing"}\nModel: ${activeModel}\n`,
     );
-    return key ? 0 : 1;
+    return typeSafeKey || openRouterKey ? 0 : 1;
   }
   if (command === "decide") {
     const human = rest.includes("--option") ? humanDecisionArgs(rest) : null;
@@ -237,7 +310,7 @@ export async function runCli(
     const result = await decide(request, {
       operation: "decide",
       source: "jev",
-      ...engine,
+      ...effectiveEngine,
     });
     stdout.write(
       flags["--json"]
@@ -252,7 +325,7 @@ export async function runCli(
       requestSchema.parse(asJson(await readInput(single(positional, "-")))),
       flags,
       false,
-      { operation: "run", source: "jev", ...engine },
+      { operation: "run", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "workflow") {
@@ -265,7 +338,7 @@ export async function runCli(
       ),
       flags,
       true,
-      { operation: "workflow", source: "jev", ...engine },
+      { operation: "workflow", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "eval") {
@@ -283,7 +356,7 @@ export async function runCli(
       }),
       flags,
       false,
-      { operation: "eval", source: "jev", ...engine },
+      { operation: "eval", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "route") {
@@ -303,7 +376,7 @@ export async function runCli(
     const result = await routeIntent(
       state,
       routes as Record<string, string>,
-      { operation: "route", source: "jev", ...engine },
+      { operation: "route", source: "jev", ...effectiveEngine },
     );
     if (flags["--out"])
       await writeFile(
@@ -346,7 +419,7 @@ export async function runCli(
       }),
       flags,
       false,
-      { operation: "suggest", source: "jev", ...engine },
+      { operation: "suggest", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "triage") {
@@ -395,7 +468,7 @@ export async function runCli(
       },
       flags,
       false,
-      { operation: "triage", source: "jev", ...engine },
+      { operation: "triage", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "gate") {
@@ -425,7 +498,7 @@ export async function runCli(
       },
       flags,
       false,
-      { operation: "gate", source: "jev", ...engine },
+      { operation: "gate", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "verify-diff") {
@@ -458,7 +531,7 @@ export async function runCli(
       },
       flags,
       false,
-      { operation: "verify-diff", source: "jev", ...engine },
+      { operation: "verify-diff", source: "jev", ...effectiveEngine },
     );
   }
   if (command === "stats") {
@@ -466,14 +539,17 @@ export async function runCli(
     if (positional.length)
       throw new Error("stats does not accept positional arguments");
     if (flags["--reset"]) {
-      await resetLocalStats(engine.statsFilePath);
+      await resetLocalStats(effectiveEngine.statsFilePath);
       stdout.write("[INFO] Local usage statistics reset.\n");
       return 0;
     }
-    const apiKey =
-      engine.apiKey?.trim() || (await (engine.keyProvider ?? resolveApiKey)());
-    const local = await readLocalStats(engine.statsFilePath);
-    const remote = await fetchAccountStats(apiKey, engine.fetchImpl);
+    const openRouterKey =
+      effectiveEngine.apiKey?.trim() || (await resolveOpenRouterApiKey());
+    const local = await readLocalStats(effectiveEngine.statsFilePath);
+    const remote = await fetchAccountStats(
+      openRouterKey,
+      effectiveEngine.fetchImpl,
+    );
     if (flags.raw) {
       const output = {
         local,

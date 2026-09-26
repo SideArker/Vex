@@ -1,11 +1,46 @@
 #!/usr/bin/env node
-import { resolveApiKey } from "./core/engine.js";
+import {
+  resolveApiKey,
+  resolveOpenRouterApiKey,
+  resolveProviderConfig,
+  resolveTypeSafeApiKey,
+} from "./core/engine.js";
+import { DEFAULT_TYPESAFE_MODEL } from "./core/schemas.js";
 import { startServer } from "./mcp/server.js";
 import {
   fetchAccountStats,
   formatStatsReport,
   readLocalStats,
   resetLocalStats,
+} from "./core/stats.js";
+
+export {
+  decide,
+  decideTyped,
+  resolveApiKey,
+  resolveTypeSafeApiKey,
+  resolveOpenRouterApiKey,
+  resolveProviderConfig,
+  DecisionError,
+  type EngineOptions,
+  type ProviderConfig,
+} from "./core/engine.js";
+export {
+  selectChoice,
+  chooseOption,
+  routeIntent,
+  formatSummary,
+  type Selection,
+} from "./core/decisions.js";
+export { createServer, startServer } from "./mcp/server.js";
+export * from "./core/schemas.js";
+export {
+  readLocalStats,
+  resetLocalStats,
+  fetchAccountStats,
+  formatStatsReport,
+  type LocalStats,
+  type CombinedStatsReport,
 } from "./core/stats.js";
 
 const VERSION = "0.1.0";
@@ -33,11 +68,21 @@ async function main(args: string[]): Promise<number> {
     return 0;
   }
   if (args[0] === "doctor" && args.length === 1) {
-    const key = await resolveApiKey();
+    const typeSafeKey = await resolveTypeSafeApiKey();
+    const openRouterKey = await resolveOpenRouterApiKey();
+    let activeProvider = "none";
+    let activeModel = DEFAULT_TYPESAFE_MODEL;
+    try {
+      const config = await resolveProviderConfig();
+      activeProvider = config.provider;
+      activeModel = config.model;
+    } catch {
+      // No active provider
+    }
     process.stdout.write(
-      `Vex ${VERSION}\nNode ${process.version}\nOpenRouter key: ${key ? "available" : "missing"}\n`,
+      `Vex ${VERSION}\nNode ${process.version}\nActive provider: ${activeProvider}\nTypeSafe key: ${typeSafeKey ? "available" : "missing"}\nOpenRouter key: ${openRouterKey ? "available" : "missing"}\nModel: ${activeModel}\n`,
     );
-    return key ? 0 : 1;
+    return typeSafeKey || openRouterKey ? 0 : 1;
   }
   if (args[0] === "stats") {
     const rest = args.slice(1);
@@ -53,9 +98,9 @@ async function main(args: string[]): Promise<number> {
       process.stdout.write("[INFO] Local usage statistics reset.\n");
       return 0;
     }
-    const key = await resolveApiKey();
+    const openRouterKey = await resolveOpenRouterApiKey();
     const local = await readLocalStats();
-    const remote = await fetchAccountStats(key);
+    const remote = await fetchAccountStats(openRouterKey);
     if (isRaw) {
       const output = {
         local,
