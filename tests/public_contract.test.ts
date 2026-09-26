@@ -35,6 +35,14 @@ const answer = (
   );
 
 describe("public bounded decision", () => {
+  it("forces routing to highest supplied option, with supplied order breaking exact ties", async () => {
+    const routing = { ...request, decisionType: "routing" as const };
+    const lowLead = await decide(routing, { apiKey: "test", fetchImpl: async () => answer("review", 0.51, { review: 0.40, none: 0.41, __jev_abstain__: 0.19 }) });
+    expect(lowLead).toMatchObject({ choice: "none", abstained: false, confidence: 0.51 });
+    const tie = await decide(routing, { apiKey: "test", fetchImpl: async () => answer("__jev_abstain__", 0.2, { review: 0.4, none: 0.4, __jev_abstain__: 0.2 }) });
+    expect(tie).toMatchObject({ choice: "review", abstained: false });
+    await expect(decide(routing, { apiKey: "test", fetchImpl: async () => answer("review", 0.9, { review: 0.8, none: 0.2 }) })).rejects.toThrow("Invalid routing probabilities");
+  });
   it("returns one versioned, allowed choice", async () => {
     const fetchImpl = vi.fn(async () => answer());
     expect(

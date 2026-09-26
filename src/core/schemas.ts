@@ -112,7 +112,7 @@ export const boundedDecisionSchema = z
         (items) => items.every((item) => item.id !== "__jev_abstain__"),
         "Reserved option ID",
       ),
-    decisionType: z.literal("choice").optional(),
+    decisionType: z.enum(["choice", "routing"]).optional(),
     constraints: z
       .union([
         z.string().trim().min(1),

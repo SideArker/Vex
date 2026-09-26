@@ -193,7 +193,9 @@ export async function decide(
       questions: {
         decision: {
           type: "choice",
-          instructions: `Choose the best supported option. Choose ${abstainId} when the information is insufficient to justify any caller option.`,
+          instructions: request.decisionType === "routing"
+            ? `Rank every supplied option by probability of meeting the request. Select the highest ranked supplied option even when the lead is small. Exact ties use supplied option order. Do not abstain.`
+            : `Choose the best supported option. Choose ${abstainId} when the information is insufficient to justify any caller option.`,
           criteria,
         },
       },
@@ -213,10 +215,28 @@ export async function decide(
     ...(probabilities ? { probabilities } : {}),
     reason,
   });
-  if (!answer || answer.type !== "choice")
+  if (!answer || answer.type !== "choice") {
+    if (request.decisionType === "routing") throw new DecisionError("Missing routing answer");
     return abstain("Missing or invalid choice answer");
+  }
   const confidence = answer.confidence ?? 0;
   const probabilities = answer.probabilities;
+  if (request.decisionType === "routing") {
+    if (!probabilities || Object.keys(probabilities).length !== request.options.length + 1 ||
+      request.options.some(({ id }) => probabilities[id] === undefined) ||
+      probabilities[abstainId] === undefined ||
+      Object.keys(probabilities).some((id) => !Object.hasOwn(criteria, id)))
+      throw new DecisionError("Invalid routing probabilities");
+    const highest = request.options.reduce((best, option) =>
+      probabilities[option.id]! > probabilities[best.id]! ? option : best);
+    return {
+      contractVersion: "1",
+      choice: highest.id,
+      abstained: false,
+      confidence,
+      probabilities: Object.fromEntries(request.options.map(({ id }) => [id, probabilities[id]!])),
+    };
+  }
   if (answer.choice === abstainId)
     return abstain("Insufficient information", confidence);
   if (!Object.hasOwn(criteria, answer.choice))
