@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -34,17 +35,43 @@ export interface EngineOptions {
   source?: "vex" | "jev" | string;
 }
 
+async function getCandidateKeyDirs(): Promise<string[]> {
+  const dirs = [homedir()];
+  // On WSL/Linux, search Windows user profile directories as fallback
+  if (process.platform === "linux") {
+    try {
+      if (existsSync("/mnt/c/Users")) {
+        const entries = await readdir("/mnt/c/Users", { withFileTypes: true });
+        for (const entry of entries) {
+          if (
+            entry.isDirectory() &&
+            !["Public", "Default", "Default User", "All Users"].includes(entry.name)
+          ) {
+            dirs.push(join("/mnt/c/Users", entry.name));
+          }
+        }
+      }
+    } catch {
+      // Continue on fs permission or access error
+    }
+  }
+  return dirs;
+}
+
 export async function resolveTypeSafeApiKey(): Promise<string | null> {
   const env = (process.env.TYPESAFE_API_KEY || process.env.JEV_API_KEY)?.trim();
   if (env) return env;
-  for (const filename of [".typesafe_key", ".jev_key"]) {
-    try {
-      const content = (
-        await readFile(join(homedir(), filename), "utf8")
-      ).trim();
-      if (content) return content;
-    } catch {
-      // Continue searching
+  const dirs = await getCandidateKeyDirs();
+  for (const dir of dirs) {
+    for (const filename of [".typesafe_key", ".jev_key"]) {
+      try {
+        const content = (
+          await readFile(join(dir, filename), "utf8")
+        ).trim();
+        if (content) return content;
+      } catch {
+        // Continue searching
+      }
     }
   }
   return null;
@@ -53,14 +80,18 @@ export async function resolveTypeSafeApiKey(): Promise<string | null> {
 export async function resolveOpenRouterApiKey(): Promise<string | null> {
   const env = process.env.OPENROUTER_API_KEY?.trim();
   if (env) return env;
-  try {
-    return (
-      (await readFile(join(homedir(), ".openrouter_key"), "utf8")).trim() ||
-      null
-    );
-  } catch {
-    return null;
+  const dirs = await getCandidateKeyDirs();
+  for (const dir of dirs) {
+    try {
+      const content = (
+        await readFile(join(dir, ".openrouter_key"), "utf8")
+      ).trim();
+      if (content) return content;
+    } catch {
+      // Continue searching
+    }
   }
+  return null;
 }
 
 export async function resolveApiKey(

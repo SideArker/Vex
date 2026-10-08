@@ -115,7 +115,7 @@ async function main(args: string[]): Promise<number> {
     process.stdout.write(`${formatStatsReport(local, remote)}\n`);
     return 0;
   }
-  if (args[0] === "mcp" && args[1] === "serve" && args.length === 2) {
+  if (args[0] === "mcp" && args[1] === "serve") {
     await startServer();
     process.stderr.write(
       "Vex MCP stdio server is ready; waiting for client requests.\n",
@@ -129,7 +129,12 @@ async function main(args: string[]): Promise<number> {
 function isDirectExecution(): boolean {
   if (!process.argv[1]) return false;
   try {
-    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+    const realArg = realpathSync(process.argv[1]);
+    const fileUrl = pathToFileURL(realArg).href;
+    return (
+      import.meta.url === fileUrl ||
+      import.meta.url.toLowerCase() === fileUrl.toLowerCase()
+    );
   } catch {
     return false;
   }

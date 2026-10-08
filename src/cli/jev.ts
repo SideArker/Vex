@@ -565,10 +565,21 @@ export async function runCli(
   throw new Error(`Unknown command: ${command}. Run 'jev --help' for usage.`);
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
-)
+function isDirectExecution(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    const realArg = realpathSync(process.argv[1]);
+    const fileUrl = pathToFileURL(realArg).href;
+    return (
+      import.meta.url === fileUrl ||
+      import.meta.url.toLowerCase() === fileUrl.toLowerCase()
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution())
   runCli(process.argv.slice(2))
     .then((code) => {
       process.exitCode = code;
