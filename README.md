@@ -112,6 +112,13 @@ npm install -g @sidearker/vex-mcp
 npx -y @sidearker/vex-mcp
 ```
 
+If `vex` or `jev` still points to an old `node_modules/vex-mcp` path, remove the legacy global install and install the scoped package:
+
+```powershell
+npm uninstall -g vex-mcp
+npm install -g @sidearker/vex-mcp
+```
+
 #### Or Build from Source
 ```sh
 # Clone repository

@@ -15,7 +15,7 @@ import {
 
 /** MCP tools reuse the CLI decision paths and never execute selected actions. */
 export function createServer(engine: EngineOptions = {}): McpServer {
-  const server = new McpServer({ name: "vex", version: "0.1.0" });
+  const server = new McpServer({ name: "vex", version: "0.1.2" });
 
   server.registerTool(
     "vex_choose",

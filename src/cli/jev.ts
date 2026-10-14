@@ -35,7 +35,7 @@ import {
   resetLocalStats,
 } from "../core/stats.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.2";
 const HELP = `Usage: jev <command> [options]
 
 Commands:
